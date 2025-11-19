@@ -2,6 +2,7 @@ import sys
 import dns.resolver
 import dns.name
 from urllib.parse import urlparse
+import json
 
 
 
@@ -13,47 +14,67 @@ def main():
         raise ValueError('Incorrect number of arguments was given.')
 
 
-    json = {}
+    result_json = {}
 
     url = sys.argv[1]
-    domain_name = urlparse(url).netloc
+    domain = urlparse(url).netloc
 
-    json['url'] = url
-    json['domain_name'] = domain_name
-    json['dns'] = {}
-    json['ip_data'] = {}
-    json['rdap'] = {}
-    json['tls'] = {}
-
-    if not json['domain_name']:
+    if not domain:
         raise ValueError('Incorrect URL value was given.')
 
+    result_json['url'] = url
+    result_json['domain_name'] = domain 
+    result_json['dns'] = {}
+    result_json['ip_data'] = {}
+    result_json['rdap'] = {}
+    result_json['tls'] = {}
 
 
     """ DNS DATA """
 
-    resolver = dns.resolver.Resolver()
     for record in DNS_RECORDS:
-        
-        record_info = {}
 
-        match record:
-            case 'A':
-                pass
-            case 'AAAA':
-                pass
-            case 'CNAME':
-                pass
-            case 'MX':
-                pass
-            case 'NS':
-                pass
-            case 'TXT':
-                pass
-            case 'SOA':
-                pass
+        try:
+            record_info = {}
+            answers = dns.resolver.resolve(domain, record)
 
-        json['dns'][record] = record_info
+            match record:
+                case 'A' | 'AAAA':
+
+                    for i, rdata in enumerate(answers):
+                        record_info[i] = str(rdata)
+
+                case 'CNAME':
+                    pass
+                case 'MX':
+                    pass
+                case 'NS':
+                    pass
+                case 'TXT':
+                    pass
+                case 'SOA':
+                    pass
+
+        except dns.resolver.LifetimeTimeout:
+            print(f"DNS ERROR for record '{record}': Timeout while resolving DNS data.")
+
+        except dns.resolver.NXDOMAIN:
+            print(f"DNS ERROR for record '{record}': Query name does not exist.")
+
+        except dns.resolver.YXDOMAIN:
+            print(f"DNS ERROR for record '{record}': Query name is too long after DNAME substitution.")
+
+        except dns.resolver.NoAnswer:
+            print(f"DNS ERROR for record '{record}': raise_on_no_answer is True and the query name exists but has no RRset of the desired type and class.")
+
+        except dns.resolver.NoNameservers:
+            print(f"DNS ERROR for record '{record}': No non-broken nameservers are available to resolve the DNS data.")
+
+        finally:
+            result_json['dns'][record] = None if not record_info else record_info
+    
+    print(json.dumps(result_json, indent=4))
+
 
 if __name__ == "__main__":
     main()
